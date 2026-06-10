@@ -24,6 +24,9 @@ canvas{display:block;width:100%;height:100%;background:#87CEEB;touch-action:none
 .fire-btn:active,.fire-btn.active{background:rgba(233,69,96,.8);transform:scale(.95)}
 .fire-btn .icon{font-size:28px;line-height:1}
 .fire-btn .label{font-size:10px;margin-top:2px}
+.weapon-row{display:flex;gap:6px;justify-content:center}
+.btn-weapon{width:42px;height:34px;border:none;border-radius:10px;background:rgba(255,255,255,.2);backdrop-filter:blur(4px);color:#fff;cursor:pointer;touch-action:none;display:flex;align-items:center;justify-content:center;font-size:16px;text-shadow:0 2px 4px rgba(0,0,0,.5);-webkit-tap-highlight-color:transparent}
+.btn-weapon:active,.btn-weapon.active{background:rgba(255,255,255,.4)}
 .overlay{position:absolute;top:0;left:0;right:0;bottom:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.75);z-index:20;color:#fff}
 .overlay.active{display:flex}
 .overlay h1{font-size:48px;margin-bottom:10px}
@@ -39,7 +42,7 @@ canvas{display:block;width:100%;height:100%;background:#87CEEB;touch-action:none
 @media(orientation:portrait) and (pointer:coarse){.game-wrapper{display:none}.rotate-overlay{display:flex}}
 @media(orientation:landscape) and (pointer:coarse){.rotate-overlay{display:none}.game-wrapper{display:block}}
 @media(pointer:fine){.controls-container{opacity:.2}.btn-left,.btn-right{width:36px;height:32px;font-size:14px}.btn-jump{width:40px;height:40px;font-size:16px}.fire-btn{width:46px;height:46px}.fire-btn .icon{font-size:16px}.fire-btn .label{font-size:7px}}
-@media(max-width:920px){.game-wrapper{width:100vw;height:100vh;border:none;border-radius:0}.btn-left,.btn-right{width:60px;height:52px;font-size:24px}.btn-jump{width:64px;height:64px;font-size:26px}.fire-btn{width:72px;height:72px}}
+@media(max-width:920px){.game-wrapper{width:100vw;height:100vh;border:none;border-radius:0}.btn-left,.btn-right{width:60px;height:52px;font-size:24px}.btn-jump{width:64px;height:64px;font-size:26px}.fire-btn{width:72px;height:72px}.btn-weapon{width:44px;height:36px;font-size:18px}.weapon-row{gap:4px}}
 </style>
 </head>
 <body onload="brython()">
@@ -59,6 +62,10 @@ canvas{display:block;width:100%;height:100%;background:#87CEEB;touch-action:none
       <button class="ctrl-btn btn-right" id="btnRight">▶</button>
     </div>
     <div class="right-controls">
+      <div class="weapon-row">
+        <button class="ctrl-btn btn-weapon" id="btnWeaponPrev">◀</button>
+        <button class="ctrl-btn btn-weapon" id="btnWeaponNext">▶</button>
+      </div>
       <button class="ctrl-btn btn-jump" id="btnUp">▲</button>
       <button class="fire-btn" id="btnFire">
         <span class="icon">🔫</span>
@@ -268,12 +275,30 @@ class Game:
         el_up.bind('touchstart',up_s); el_up.bind('touchend',up_e); el_up.bind('touchcancel',up_e)
         el_up.bind('mousedown',up_s); el_up.bind('mouseup',up_e); el_up.bind('mouseleave',up_e)
 
+        def wp_s(e,k): e.preventDefault(); (self._prev_weapon if k=='prev' else self._next_weapon)()
+        document['btnWeaponPrev'].bind('touchstart',lambda e:wp_s(e,'prev'))
+        document['btnWeaponPrev'].bind('mousedown',lambda e:wp_s(e,'prev'))
+        document['btnWeaponNext'].bind('touchstart',lambda e:wp_s(e,'next'))
+        document['btnWeaponNext'].bind('mousedown',lambda e:wp_s(e,'next'))
+
         document['restartBtn'].bind('click',lambda e:self.restart())
         document['nextLevelBtn'].bind('click',lambda e:self.next())
         document['playAgainBtn'].bind('click',lambda e:self.restart())
 
-    def _switch_weapon(self, wid):
-        if self.p: self.p.weapon=wid; self.p.weapon_idx=WEAPON_KEYS.index(wid)
+        def _switch_weapon(self, wid):
+            if self.p: self.p.weapon=wid; self.p.weapon_idx=WEAPON_KEYS.index(wid)
+        def _next_weapon(self):
+            if not self.p: return
+            owned=[w for w in WEAPON_KEYS if w in self.p.owned]
+            if len(owned)<2: return
+            idx=owned.index(self.p.weapon) if self.p.weapon in owned else 0
+            self._switch_weapon(owned[(idx+1)%len(owned)])
+        def _prev_weapon(self):
+            if not self.p: return
+            owned=[w for w in WEAPON_KEYS if w in self.p.owned]
+            if len(owned)<2: return
+            idx=owned.index(self.p.weapon) if self.p.weapon in owned else 0
+            self._switch_weapon(owned[(idx-1)%len(owned)])
 
     def init(self):
         rng=random.Random(random.randint(0,99999))
