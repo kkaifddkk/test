@@ -285,20 +285,20 @@ class Game:
         document['nextLevelBtn'].bind('click',lambda e:self.next())
         document['playAgainBtn'].bind('click',lambda e:self.restart())
 
-        def _switch_weapon(self, wid):
-            if self.p: self.p.weapon=wid; self.p.weapon_idx=WEAPON_KEYS.index(wid)
-        def _next_weapon(self):
-            if not self.p: return
-            owned=[w for w in WEAPON_KEYS if w in self.p.owned]
-            if len(owned)<2: return
-            idx=owned.index(self.p.weapon) if self.p.weapon in owned else 0
-            self._switch_weapon(owned[(idx+1)%len(owned)])
-        def _prev_weapon(self):
-            if not self.p: return
-            owned=[w for w in WEAPON_KEYS if w in self.p.owned]
-            if len(owned)<2: return
-            idx=owned.index(self.p.weapon) if self.p.weapon in owned else 0
-            self._switch_weapon(owned[(idx-1)%len(owned)])
+    def _switch_weapon(self, wid):
+        if self.p: self.p.weapon=wid; self.p.weapon_idx=WEAPON_KEYS.index(wid)
+    def _next_weapon(self):
+        if not self.p: return
+        owned=[w for w in WEAPON_KEYS if w in self.p.owned]
+        if len(owned)<2: return
+        idx=owned.index(self.p.weapon) if self.p.weapon in owned else 0
+        self._switch_weapon(owned[(idx+1)%len(owned)])
+    def _prev_weapon(self):
+        if not self.p: return
+        owned=[w for w in WEAPON_KEYS if w in self.p.owned]
+        if len(owned)<2: return
+        idx=owned.index(self.p.weapon) if self.p.weapon in owned else 0
+        self._switch_weapon(owned[(idx-1)%len(owned)])
 
     def init(self):
         rng=random.Random(random.randint(0,99999))
