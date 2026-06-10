@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Котик против зомби</title>
+<script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython_stdlib.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-user-select:none}
+body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:'Segoe UI',sans-serif;overflow:hidden;touch-action:none}
+.game-wrapper{position:relative;width:900px;height:500px;max-width:100vw;max-height:100vh;border:3px solid #e94560;border-radius:8px;box-shadow:0 0 40px rgba(233,69,96,.3);overflow:hidden}
+canvas{display:block;width:100%;height:100%;background:#87CEEB;touch-action:none}
+.controls-container{position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-end;padding:12px 16px;pointer-events:none;z-index:10;opacity:.85}
+.controls-container.hidden{display:none}
+.left-controls{display:flex;gap:8px;pointer-events:auto;align-items:flex-end}
+.right-controls{display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:auto;margin-bottom:5px}
+.ctrl-btn{border:none;border-radius:14px;background:rgba(255,255,255,.2);backdrop-filter:blur(4px);color:#fff;cursor:pointer;touch-action:none;display:flex;align-items:center;justify-content:center;text-shadow:0 2px 4px rgba(0,0,0,.5);transition:background .05s;-webkit-tap-highlight-color:transparent}
+.ctrl-btn:active,.ctrl-btn.active{background:rgba(255,255,255,.45)}
+.btn-left,.btn-right{width:64px;height:56px;font-size:28px;border-radius:14px}
+.btn-jump{width:72px;height:72px;font-size:30px;border-radius:50%;background:rgba(100,200,255,.3);border:2px solid rgba(255,255,255,.15)}
+.btn-jump:active,.btn-jump.active{background:rgba(100,200,255,.6)}
+.fire-btn{width:76px;height:76px;border:none;border-radius:50%;font-size:13px;font-weight:bold;background:rgba(233,69,96,.5);backdrop-filter:blur(4px);color:#fff;cursor:pointer;touch-action:none;display:flex;align-items:center;justify-content:center;flex-direction:column;box-shadow:0 0 20px rgba(233,69,96,.3);transition:background .05s;-webkit-tap-highlight-color:transparent;border:2px solid rgba(255,255,255,.2)}
+.fire-btn:active,.fire-btn.active{background:rgba(233,69,96,.8);transform:scale(.95)}
+.fire-btn .icon{font-size:28px;line-height:1}
+.fire-btn .label{font-size:10px;margin-top:2px}
+.overlay{position:absolute;top:0;left:0;right:0;bottom:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.75);z-index:20;color:#fff}
+.overlay.active{display:flex}
+.overlay h1{font-size:48px;margin-bottom:10px}
+.overlay h2{font-size:24px;margin-bottom:20px;opacity:.8}
+.overlay .btn{padding:14px 40px;font-size:20px;border:none;border-radius:8px;background:#e94560;color:#fff;cursor:pointer;margin:6px;transition:background .2s}
+.overlay .btn:hover{background:#ff6b81}
+.overlay .stats{font-size:18px;margin-bottom:15px;opacity:.9}
+.rotate-overlay{position:fixed;top:0;left:0;right:0;bottom:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:#1a1a2e;z-index:999;color:#fff;text-align:center;padding:40px}
+.rotate-overlay .icon{font-size:80px;margin-bottom:20px;animation:rotate-phone 2s ease-in-out infinite}
+.rotate-overlay h2{font-size:22px;margin-bottom:10px;font-weight:600}
+.rotate-overlay p{font-size:14px;opacity:.6}
+@keyframes rotate-phone{0%,100%{transform:rotate(0deg)}50%{transform:rotate(90deg)}}
+@media(orientation:portrait) and (pointer:coarse){.game-wrapper{display:none}.rotate-overlay{display:flex}}
+@media(orientation:landscape) and (pointer:coarse){.rotate-overlay{display:none}.game-wrapper{display:block}}
+@media(pointer:fine){.controls-container{opacity:.2}.btn-left,.btn-right{width:36px;height:32px;font-size:14px}.btn-jump{width:40px;height:40px;font-size:16px}.fire-btn{width:46px;height:46px}.fire-btn .icon{font-size:16px}.fire-btn .label{font-size:7px}}
+@media(max-width:920px){.game-wrapper{width:100vw;height:100vh;border:none;border-radius:0}.btn-left,.btn-right{width:60px;height:52px;font-size:24px}.btn-jump{width:64px;height:64px;font-size:26px}.fire-btn{width:72px;height:72px}}
+</style>
+</head>
+<body onload="brython()">
+
+<div class="rotate-overlay">
+  <div class="icon">📱</div>
+  <h2>Поверни телефон</h2>
+  <p>Для игры переверни экран в горизонтальный режим</p>
+</div>
+
+<div class="game-wrapper" id="gameWrapper">
+  <canvas id="gameCanvas" width="900" height="500"></canvas>
+
+  <div class="controls-container" id="controlsContainer">
+    <div class="left-controls">
+      <button class="ctrl-btn btn-left"  id="btnLeft">◀</button>
+      <button class="ctrl-btn btn-right" id="btnRight">▶</button>
+    </div>
+    <div class="right-controls">
+      <button class="ctrl-btn btn-jump" id="btnUp">▲</button>
+      <button class="fire-btn" id="btnFire">
+        <span class="icon">🔫</span>
+        <span class="label">ОГОНЬ</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="overlay" id="gameOverOverlay">
+    <h1>💀</h1>
+    <h1>Game Over</h1>
+    <div class="stats" id="goStats">Счёт: 0 | Уровень: 1</div>
+    <button class="btn" id="restartBtn">Начать заново</button>
+  </div>
+
+  <div class="overlay" id="levelCompleteOverlay">
+    <h1>🎉</h1>
+    <h1>Уровень пройден!</h1>
+    <div class="stats" id="lcStats">Счёт: 0</div>
+    <button class="btn" id="nextLevelBtn">Следующий уровень</button>
+  </div>
+
+  <div class="overlay" id="victoryOverlay">
+    <h1>🏆</h1>
+    <h1>Победа!</h1>
+    <div class="stats" id="victoryStats">Счёт: 0 | Уровней пройдено: 6</div>
+    <button class="btn" id="playAgainBtn">Играть снова</button>
+  </div>
+</div>
+
+<script type="text/python">
+from browser import document, window, timer, html
+import math, random
+from browser.timer import request_animation_frame
+
+# ── CONSTANTS ──
+CW, CH = 900, 500
+GRAVITY = 0.55
+JUMP_FORCE = -11.5
+PLAYER_SPEED = 3.5
+PLAYER_SIZE = 38
+GROUND_H = 40
+TOTAL_LEVELS = 6
+
+WEAPONS = {
+    'pistol':  {'name':'Пистолет','dmg':15,'spd':10,'cd':14,'icon':'🔫','ammo':99999,'spread':0,'btype':'single'},
+    'rifle':   {'name':'Автомат', 'dmg':12,'spd':14,'cd':6, 'icon':'🔧','ammo':250, 'spread':1,'btype':'single'},
+    'shotgun': {'name':'Дробовик','dmg':9, 'spd':12,'cd':22,'icon':'💥','ammo':60,  'spread':3,'btype':'spread','bullets':5},
+    'rocket':  {'name':'Ракетница','dmg':50,'spd':7,'cd':38,'icon':'🚀','ammo':25, 'spread':0,'btype':'explode'},
+    'laser':   {'name':'Лазер',   'dmg':5, 'spd':22,'cd':3, 'icon':'⚡','ammo':180, 'spread':0,'btype':'pierce'},
+}
+WEAPON_KEYS = list(WEAPONS.keys())
+
+# ── CANVAS ──
+canvas = document['gameCanvas']
+ctx = canvas.getContext('2d')
+
+# ── HELPERS ──
+class Entity:
+    def __init__(self, x, y, w, h):
+        self.x=x; self.y=y; self.w=w; self.h=h; self.vx=0; self.vy=0
+
+def collide(a,b):
+    return a.x<b.x+b.w and a.x+a.w>b.x and a.y<b.y+b.h and a.y+a.h>b.y
+
+def darken(hx, am):
+    h=hx.lstrip('#'); r=max(0,int(h[0:2],16)-am); g=max(0,int(h[2:4],16)-am); b=max(0,int(h[4:6],16)-am)
+    return f'#{r:02x}{g:02x}{b:02x}'
+
+def rgba(c, a):
+    h=c.lstrip('#'); return f'rgba({int(h[0:2],16)},{int(h[2:4],16)},{int(h[4:6],16)},{a})'
+
+def rnd_rect(x,y,w,h,r):
+    r=min(r,w//2,h//2)
+    ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+    ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h-r);
+    ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h);
+    ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r);
+    ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath()
+
+# ── CAMERA ──
+class Camera:
+    def __init__(self): self.x=0; self.y=0; self.shake=0
+
+# ── ENTITIES ──
+class Player(Entity):
+    def __init__(self):
+        super().__init__(80, CH-GROUND_H-PLAYER_SIZE, PLAYER_SIZE, PLAYER_SIZE)
+        self.hp=100; self.max_hp=100; self.weapon='pistol'; self.armor=0; self.max_armor=50
+        self.on_ground=False; self.invincible=0; self.facing=True; self.weapon_idx=0
+        self.owned=['pistol']
+        self.max_ammo={k:WEAPONS[k]['ammo']*2 if WEAPONS[k]['ammo']<99999 else 99999 for k in WEAPON_KEYS}
+        self.ammo={k:(WEAPONS[k]['ammo'] if k=='pistol' else 0) for k in WEAPON_KEYS}
+        self.can_double_jump=False; self.has_double_jump=False; self.jumps_left=1
+    def take_dmg(self, am):
+        if self.invincible>0: return
+        self.hp-=am; self.invincible=20
+
+class Zombie(Entity):
+    TYPES = [
+        {'id':'n','hp':18,'sp':0.9,'sz':34,'cl':'#4a7a3a','dm':7,'wt':40},
+        {'id':'f','hp':10,'sp':2.0,'sz':28,'cl':'#cc6633','dm':5,'wt':20},
+        {'id':'b','hp':40,'sp':0.5,'sz':44,'cl':'#2a4a1a','dm':12,'wt':10},
+        {'id':'a','hp':28,'sp':0.7,'sz':36,'cl':'#6a6a5a','dm':6,'wt':10},
+    ]
+    def __init__(self, x, y, level):
+        ws=[t['wt']+max(0,level-1)*3*(t['sp']+0.5) for t in self.TYPES]
+        t=random.choices(self.TYPES, weights=ws)[0]
+        sz=t['sz']+random.randint(-2,2)
+        super().__init__(x, y-sz, sz, sz)
+        self.hp=t['hp']+level*2; self.max_hp=self.hp; self.sp=t['sp']+level*0.04
+        self.tid=t['id']; self.cl=t['cl']; self.dm=t['dm']+level//2; self.vy=0
+
+class Boss(Entity):
+    def __init__(self,x,y,level):
+        w,h=68,78
+        super().__init__(x-w//2, y-h, w, h)
+        self.max_hp=120+level*60; self.hp=self.max_hp; self.sp=0.7+level*0.04; self.vy=0
+
+class Spike:
+    def __init__(self,x,y,w,h): self.x=x; self.y=y; self.w=w; self.h=h; self.dm=12
+
+class FoodBowl(Entity):
+    def __init__(self,x,y): super().__init__(x,y,40,30)
+
+class Bullet(Entity):
+    def __init__(self,x,y,dmg,speed,radius,btype='single',spread=0):
+        super().__init__(x,y,radius*2,radius*2)
+        self.dmg=dmg; self.speed=speed; self.radius=radius; self.btype=btype; self.alive=True
+        self.vx=speed; self.vy=0
+
+class Explosion:
+    def __init__(self,x,y,radius):
+        self.x=x; self.y=y; self.radius=radius; self.life=20
+
+class Item:
+    def __init__(self,x,y,typ):
+        self.x=x; self.y=y; self.w=24; self.h=24; self.typ=typ; self.collected=False
+
+class Platform:
+    def __init__(self,x,y,w,h,c): self.x=x; self.y=y; self.w=w; self.h=h; self.c=c; self.ground=False
+
+class Particle:
+    def __init__(self,x,y,vx,vy,c,sz=3): self.x=x; self.y=y; self.vx=vx; self.vy=vy; self.c=c; self.l=16; self.sz=sz
+
+class Popup:
+    def __init__(self,x,y,text,c='#fff'): self.x=x; self.y=y; self.t=text; self.c=c; self.l=40; self.vy=-2
+
+# ── GAME ──
+class Game:
+    def __init__(self):
+        self.level=1; self.score=0; self.kills=0; self.state='playing'; self.ctx=ctx
+        self.cam=Camera(); self.prog=0; self.len=0; self.ok=False; self.dmg_f=0
+        self.keys={'left':False,'right':False,'up':False,'fire':False,'jump_held':False}
+        self.p=None; self.plats=[]; self.zoms=[]; self.bullets=[]; self.items=[]
+        self.spikes=[]; self.parts=[]; self.popups=[]; self.explosions=[]
+        self.boss=None; self.food=None; self.boss_dead=False; self.boss_sp=False; self.food_sp=False
+        self.shoot_cd=0; self.z_timer=0; self.z_int=120; self.combo=0; self.combo_t=0
+        self.lives=3; self.life_score=0; self.life_interval=400
+        self.touch=window.navigator.maxTouchPoints>0
+        if not self.touch:
+            try: self.touch='ontouchstart' in window
+            except: pass
+
+    def start(self):
+        self._hide()
+        if self.touch: document['controlsContainer'].classList.remove('hidden')
+        else: document['controlsContainer'].classList.add('hidden')
+        self._controls()
+        self.init()
+        request_animation_frame(self.loop)
+
+    def _hide(self):
+        for o in ['gameOverOverlay','levelCompleteOverlay','victoryOverlay']:
+            document[o].classList.remove('active')
+
+    def _controls(self):
+        def kd(ev):
+            k=ev.key
+            if k in ('ArrowLeft','a'): self.keys['left']=True
+            elif k in ('ArrowRight','d'): self.keys['right']=True
+            elif k in ('ArrowUp','w'): self.keys['up']=True; self.keys['jump_held']=True
+            elif k==' ': self.keys['fire']=True; ev.preventDefault()
+            elif k in '12345':
+                idx=int(k)-1
+                if idx<len(WEAPON_KEYS):
+                    wid=WEAPON_KEYS[idx]
+                    if self.p and wid in self.p.owned: self._switch_weapon(wid)
+        def ku(ev):
+            k=ev.key
+            if k in ('ArrowLeft','a'): self.keys['left']=False
+            elif k in ('ArrowRight','d'): self.keys['right']=False
+            elif k in ('ArrowUp','w'): self.keys['up']=False; self.keys['jump_held']=False
+            elif k==' ': self.keys['fire']=False
+        window.addEventListener('keydown',kd); window.addEventListener('keyup',ku)
+
+        def bind(b,k):
+            el=document[b]
+            def s(e): e.preventDefault(); self.keys[k]=True; el.classList.add('active')
+            def eo(e): e.preventDefault(); self.keys[k]=False; el.classList.remove('active')
+            el.bind('touchstart',s); el.bind('touchend',eo); el.bind('touchcancel',eo)
+            el.bind('mousedown',s); el.bind('mouseup',eo); el.bind('mouseleave',eo)
+        bind('btnUp','up'); bind('btnLeft','left'); bind('btnRight','right'); bind('btnFire','fire')
+
+        document['restartBtn'].bind('click',lambda e:self.restart())
+        document['nextLevelBtn'].bind('click',lambda e:self.next())
+        document['playAgainBtn'].bind('click',lambda e:self.restart())
+
+    def _switch_weapon(self, wid):
+        if self.p: self.p.weapon=wid; self.p.weapon_idx=WEAPON_KEYS.index(wid)
+
+    def init(self):
+        rng=random.Random(random.randint(0,99999))
+        self.cam.x=0; self.cam.shake=0; self.prog=0
+        self.len=3500+self.level*900
+        self.boss_dead=False; self.boss_sp=False; self.food_sp=False
+        self.z_timer=0; self.z_int=max(45,130-self.level*10); self.shoot_cd=0; self.combo=0; self.combo_t=0
+        if self.level==1: self.lives=3; self.life_score=0
+        self.plats=[]; self.zoms=[]; self.bullets=[]; self.items=[]; self.spikes=[]
+        self.parts=[]; self.popups=[]; self.explosions=[]; self.boss=None; self.food=None
+        self._gen(rng)
+        self.p=Player()
+        for _ in range(2+self.level):
+            self.zoms.append(Zombie(rng.randint(500,min(self.len-300,1000)), CH-GROUND_H, self.level))
+        self.ok=True
+
+    def _gen(self, rng):
+        theme=(self.level-1)%6
+        pals=[{'g':'#5a3a1a','p':['#8B4513','#A0522D','#6B3410','#CD853F']},
+              {'g':'#3a5a3a','p':['#4a7a4a','#5a8a3a','#3a6a3a','#6a9a4a']},
+              {'g':'#3a3a5a','p':['#4a4a7a','#5a5a8a','#3a3a6a','#6a6a9a']},
+              {'g':'#5a3a4a','p':['#7a4a5a','#8a5a6a','#6a3a4a','#9a6a7a']},
+              {'g':'#4a4a3a','p':['#6a6a4a','#7a7a5a','#5a5a3a','#8a8a6a']},
+              {'g':'#3a4a5a','p':['#4a6a7a','#5a7a8a','#3a5a6a','#6a8a9a']}]
+        pal=pals[theme]; gc=pal['g']; pc=pal['p']
+
+        # Ground with pits
+        pit_ch=0.08+self.level*0.01; x=-200
+        while x<self.len+500:
+            if x<400: pw=rng.randint(300,500)
+            else: pw=rng.randint(200,500) if rng.random()>pit_ch else rng.randint(60,150)
+            if pw<150: x+=pw; continue
+            s=Platform(x,CH-GROUND_H,pw,GROUND_H,gc); s.ground=True; self.plats.append(s); x+=pw
+
+        # Floating platforms (fewer — parkour sections add more)
+        for i in range(3+self.level):
+            x=400+i*((self.len-800)//(3+self.level))+rng.randint(-60,60)
+            x=min(x,self.len-200); pw=rng.randint(90,170)
+            y=max(70,CH-GROUND_H-rng.randint(45,160))
+            p=Platform(x,y,pw,16,rng.choice(pc)); self.plats.append(p)
+
+        # Spikes
+        sp_plats=[p for p in self.plats if p.ground]+[p for p in self.plats if not p.ground and p.w>=100]
+        rng.shuffle(sp_plats); placed=0; target=3+self.level
+        for p in sp_plats:
+            if placed>=target or p.w<60: continue
+            sx=p.x+rng.randint(10,max(15,p.w-40)); sy=p.y-14
+            if sy<20: continue
+            self.spikes.append(Spike(sx,sy,24+rng.randint(0,16),14)); placed+=1
+
+        # ── Parkour challenges for weapons & items ──
+        types_pool=['rifle','shotgun','rocket','laser','armor','heart','gem']
+        num_challenges=2+self.level
+        step=max(350,(self.len-900)//num_challenges)
+        cx=300+step
+
+        for ci in range(num_challenges):
+            cx+=step+rng.randint(-20,20)
+            cx=min(cx,self.len-400)
+            if cx<500: continue
+            typ=types_pool[ci%len(types_pool)]
+            mode=ci%3
+
+            if mode==0:
+                # STAIRCASE: 3 narrow platforms, wide gaps, spikes below
+                base_y=CH-GROUND_H-rng.randint(40,60)
+                # Platform 1 (lowest)
+                p1=Platform(cx,base_y,36,14,rng.choice(pc)); self.plats.append(p1)
+                # Platform 2 (higher, big gap)
+                p2=Platform(cx+105,base_y-42,38,14,rng.choice(pc)); self.plats.append(p2)
+                # Platform 3 (highest — has the item)
+                p3=Platform(cx+215,base_y-84,40,14,rng.choice(pc)); self.plats.append(p3)
+                # Item on top
+                self.items.append(Item(cx+225,base_y-112,typ))
+                # Landing platform after item
+                if cx+280<self.len-50:
+                    p4=Platform(cx+270,base_y-15,55,14,rng.choice(pc)); self.plats.append(p4)
+                # Spikes everywhere below
+                for sx in range(cx-15, cx+320, 25):
+                    if sx<cx+5: continue
+                    self.spikes.append(Spike(sx,base_y+12,20,14))
+
+            elif mode==1:
+                # SPIKE RUN: runway with 4 spike rows, item at end
+                py=CH-GROUND_H-rng.randint(65,105)
+                # Main runway
+                p=Platform(cx,py,150,14,rng.choice(pc)); self.plats.append(p)
+                # Spike rows along runway
+                for sp_mid in [25, 55, 85, 115]:
+                    self.spikes.append(Spike(cx+sp_mid,py-14,16,14))
+                # Item at the far end  
+                self.items.append(Item(cx+138,py-28,typ))
+                # Jump-off platform before (gap to runway start)
+                bx=cx-75; by=py
+                if by<CH-GROUND_H-10:
+                    self.plats.append(Platform(bx,by,55,14,rng.choice(pc)))
+                # Landing platform after (gap from runway end)
+                lx=cx+160; ly=py+20
+                if ly<CH-GROUND_H-15 and lx<self.len-50:
+                    self.plats.append(Platform(lx,ly,55,14,rng.choice(pc)))
+
+            else:
+                # BIG GAP: two platforms far apart, item on far one
+                py=CH-GROUND_H-rng.randint(90,120)
+                # Platform 1 (jump from)
+                p1=Platform(cx,py,48,14,rng.choice(pc)); self.plats.append(p1)
+                # Platform 2 (far away)
+                gap=100+self.level*8
+                p2=Platform(cx+48+gap,py-30,48,14,rng.choice(pc)); self.plats.append(p2)
+                # Item on far platform
+                self.items.append(Item(cx+48+gap+48//2-12,py-30-28,typ))
+                # Landing after item
+                if cx+48+gap+100<self.len-50:
+                    p3=Platform(cx+48+gap+85,py-5,55,14,rng.choice(pc)); self.plats.append(p3)
+                # Spikes below the whole gap
+                for sx in range(cx-5, cx+48+gap+60, 22):
+                    if sx<cx+5: continue
+                    self.spikes.append(Spike(sx,py+12,18,14))
+
+    def restart(self):
+        self._hide(); self.level=1; self.score=0; self.kills=0; self.state='playing'; self.init()
+
+    def next(self):
+        self._hide(); self.level+=1
+        if self.level>TOTAL_LEVELS:
+            self.state='victory'
+            document['victoryStats'].text=f'Счёт: {self.score} | Уровней пройдено: {TOTAL_LEVELS}'
+            document['victoryOverlay'].classList.add('active'); return
+        self.state='playing'; self.init()
+
+    def loop(self, ts):
+        if self.state=='playing': self.update()
+        self.render()
+        request_animation_frame(self.loop)
+
+    def add_popup(self,x,y,t,c='#fff'):
+        self.popups.append(Popup(x,y,t,c))
+
+    def explode(self,x,y,radius,dmg):
+        self.explosions.append(Explosion(x,y,radius))
+        self.cam.shake=8
+        # Damage nearby enemies
+        for z in self.zoms[:]:
+            if abs(z.x+z.w//2-x)<radius+20:
+                z.hp-=dmg
+                if z.hp<=0:
+                    self.zoms.remove(z); self.score+=10+self.level*2+(3 if z.tid=='b' else 0)
+                    self.kills+=1; self.add_popup(z.x+z.w//2,z.y,f'+{10+self.level*2}')
+                    for _ in range(8):
+                        self.parts.append(Particle(z.x+z.w//2,z.y+z.h//2,random.uniform(-6,6),random.uniform(-6,6),'#ff8800',5))
+        if self.boss and not self.boss_dead:
+            dx=abs(self.boss.x+self.boss.w//2-x)
+            if dx<radius+30:
+                self.boss.hp-=dmg//2
+
+    def update(self):
+        p=self.p
+        if not p or not self.ok: return
+
+        # Movement
+        mx=0
+        if self.keys['left']: mx=-PLAYER_SPEED; p.facing=False
+        elif self.keys['right']: mx=PLAYER_SPEED; p.facing=True
+
+        # Variable jump
+        if self.keys['up'] and p.on_ground:
+            p.vy=JUMP_FORCE; p.on_ground=False; p.jumps_left=1 if p.has_double_jump else 0
+        elif self.keys['up'] and not self.keys['jump_held'] and p.vy<-4:
+            p.vy*=-.3  # short hop
+        elif self.keys['up'] and p.has_double_jump and p.jumps_left>0 and not p.on_ground:
+            p.vy=JUMP_FORCE*0.8; p.jumps_left-=1
+
+        p.x+=mx; p.vy+=GRAVITY; p.y+=p.vy
+
+        # Camera
+        tc=p.x-CW*0.32
+        if tc>self.cam.x: self.cam.x=tc
+        self.prog=self.cam.x
+
+        # Clamp
+        sx=p.x-self.cam.x
+        if sx<40: p.x=self.cam.x+40
+        if sx>CW-60: p.x=self.cam.x+CW-60
+
+        # Fall
+        if p.y>CH+100:
+            p.take_dmg(15); p.y=CH-GROUND_H-p.h-50; p.vy=0
+
+        # Platform collision
+        p.on_ground=False
+        for plat in self.plats:
+            if not collide(p,plat): continue
+            if p.vy>0 and p.y+p.h-p.vy<=plat.y+8:
+                p.y=plat.y-p.h; p.vy=0; p.on_ground=True; p.jumps_left=1 if p.has_double_jump else 0
+            elif p.vy<0 and p.y-p.vy>=plat.y+plat.h-8:
+                p.y=plat.y+plat.h; p.vy=0
+            elif p.x+p.w-mx<=plat.x+4: p.x=plat.x-p.w
+            elif p.x-mx>=plat.x+plat.w-4: p.x=plat.x+plat.w
+
+        # Spikes
+        for sp in self.spikes:
+            if collide(p,Entity(sp.x,sp.y,sp.w,sp.h)):
+                d=max(2,int(sp.dm-p.armor*0.2)); p.take_dmg(d); p.x-=20; p.vy=-6; self.dmg_f=8
+
+        # Shoot
+        if self.shoot_cd>0: self.shoot_cd-=1
+        w=WEAPONS.get(p.weapon); cd=w['cd'] if w else 14
+        if self.keys['fire'] and self.shoot_cd<=0:
+            if p.ammo.get(p.weapon,0)<=0: return
+            self.shoot_cd=cd
+            p.ammo[p.weapon]=max(0,p.ammo[p.weapon]-1)
+            bx=p.x+p.w; by=p.y+p.h*0.35
+            if w['btype']=='spread':
+                for i in range(w['bullets']):
+                    ang=math.radians((i-w['bullets']//2)*8+random.uniform(-3,3))
+                    bx2=bx; by2=by+ang*10
+                    b=Bullet(bx2,by2,w['dmg'],w['spd'],3,'spread')
+                    b.vx=w['spd']*math.cos(ang); b.vy=w['spd']*math.sin(ang)*0.3
+                    self.bullets.append(b)
+            elif w['btype']=='explode':
+                b=Bullet(bx,by,w['dmg'],w['spd'],8,'explode'); self.bullets.append(b)
+            elif w['btype']=='pierce':
+                b=Bullet(bx,by,w['dmg'],w['spd'],4,'pierce'); self.bullets.append(b)
+            else:
+                b=Bullet(bx,by,w['dmg'],w['spd'],4,'single')
+                b.vy=random.uniform(-w['spread'],w['spread']) if w['spread'] else 0
+                self.bullets.append(b)
+            # Muzzle
+            for _ in range(4):
+                self.parts.append(Particle(bx,by+4,random.uniform(2,6),random.uniform(-3,3),'#ffcc00'))
+            # Laser beam line
+            if w['btype']=='pierce':
+                for _ in range(12):
+                    self.parts.append(Particle(bx+random.randint(0,100),by+random.uniform(-4,4),
+                        random.uniform(4,10),random.uniform(-2,2),'#00ddff'))
+
+        # Bullets
+        for b in self.bullets[:]:
+            b.x+=b.vx; b.y+=b.vy
+            if b.x>self.cam.x+CW+100 or b.x<self.cam.x-100: b.alive=False
+            if not b.alive: self.bullets.remove(b); continue
+
+            # Explode on hit (rocket)
+            if b.btype=='explode':
+                hit=False
+                for z in self.zoms[:]:
+                    if collide(b,z):
+                        self.explode(b.x,b.y,60,b.dmg); hit=True; b.alive=False; break
+                if self.boss and not self.boss_dead and collide(b,self.boss):
+                    self.explode(b.x,b.y,60,b.dmg); hit=True; b.alive=False
+                if hit:
+                    for _ in range(20):
+                        a=random.uniform(0,math.pi*2); sp=random.uniform(2,8)
+                        self.parts.append(Particle(b.x,b.y,math.cos(a)*sp,math.sin(a)*sp,'#ff6600',6))
+                    if b in self.bullets: self.bullets.remove(b)
+                continue
+
+            # Pierce check
+            if b.btype=='pierce':
+                for z in self.zoms[:]:
+                    if collide(b,z):
+                        z.hp-=b.dmg
+                        for _ in range(3):
+                            self.parts.append(Particle(b.x,b.y,random.uniform(-3,3),random.uniform(-3,3),'#00ddff'))
+                        if z.hp<=0:
+                            self.zoms.remove(z); self.score+=10+self.level*2; self.kills+=1
+                            self.add_popup(z.x+z.w//2,z.y,f'+{10+self.level*2}','#ffdd44')
+                            for _ in range(8):
+                                self.parts.append(Particle(z.x+z.w//2,z.y+z.h//2,random.uniform(-5,5),random.uniform(-5,5),'#ff8800',4))
+                continue
+
+            # Normal / spread
+            for z in self.zoms[:]:
+                if collide(b,z):
+                    z.hp-=b.dmg; b.alive=False
+                    for _ in range(4):
+                        self.parts.append(Particle(b.x,b.y,random.uniform(-4,4),random.uniform(-4,4),'#ff4444'))
+                    if z.hp<=0:
+                        self.zoms.remove(z); self.score+=10+self.level*2; self.kills+=1
+                        self.add_popup(z.x+z.w//2,z.y,f'+{10+self.level*2}','#ffdd44')
+                        for _ in range(10):
+                            self.parts.append(Particle(z.x+z.w//2,z.y+z.h//2,random.uniform(-5,5),random.uniform(-5,5),'#ff8800'))
+                    break
+
+            if not b.alive:
+                if b in self.bullets: self.bullets.remove(b)
+                continue
+
+            # Bullet vs boss
+            if self.boss and not self.boss_dead and collide(b,self.boss):
+                self.boss.hp-=b.dmg; b.alive=False
+                for _ in range(6):
+                    self.parts.append(Particle(b.x,b.y,random.uniform(-4,4),random.uniform(-4,4),'#ff00ff'))
+                if self.boss.hp<=0:
+                    self.boss_dead=True; self.score+=50+self.level*15
+                    for _ in range(30):
+                        self.parts.append(Particle(self.boss.x+self.boss.w//2,self.boss.y+self.boss.h//2,
+                            random.uniform(-7,7),random.uniform(-7,7),'#ff00ff',5))
+                if b in self.bullets: self.bullets.remove(b)
+
+        # Zombie update
+        for z in self.zoms[:]:
+            z.x-=z.sp; z.vy+=GRAVITY; z.y+=z.vy
+            for plat in self.plats:
+                if collide(z,plat) and z.vy>0 and z.y+z.h-z.vy<=plat.y+8:
+                    z.y=plat.y-z.h; z.vy=0
+            if z.y>CH+200:
+                if z in self.zoms: self.zoms.remove(z); continue
+            if collide(z,p):
+                d=max(1,z.dm-int(p.armor*0.25)); p.take_dmg(d); self.dmg_f=8; self.cam.shake=4
+                if z in self.zoms: self.zoms.remove(z)
+
+        # Boss AI
+        if self.boss and not self.boss_dead:
+            dist=p.x-self.boss.x
+            if abs(dist)<500: self.boss.x-=self.boss.sp
+            self.boss.vy+=GRAVITY; self.boss.y+=self.boss.vy
+            for plat in self.plats:
+                if collide(self.boss,plat) and self.boss.vy>0 and self.boss.y+self.boss.h-self.boss.vy<=plat.y+8:
+                    self.boss.y=plat.y-self.boss.h; self.boss.vy=0
+            if collide(self.boss,p):
+                d=max(3,18-int(p.armor*0.3)); p.take_dmg(d); self.dmg_f=10; self.cam.shake=8; self.boss.x+=30
+
+        # Items
+        for item in self.items[:]:
+            if collide(p,item) and not item.collected:
+                item.collected=True
+                if item.typ in WEAPON_KEYS:
+                    if item.typ not in p.owned: p.owned.append(item.typ)
+                    self._switch_weapon(item.typ)
+                    p.ammo[item.typ]=min(p.max_ammo[item.typ],p.ammo[item.typ]+WEAPONS[item.typ]['ammo'])
+                    self.add_popup(item.x+12,item.y,WEAPONS[item.typ]['name']+'!','#ffdd44')
+                elif item.typ=='armor':
+                    p.armor=min(p.max_armor,p.armor+25); self.add_popup(item.x+12,item.y,'+Броня','#44aaff')
+                elif item.typ=='heart':
+                    p.hp=min(p.max_hp,p.hp+30); self.add_popup(item.x+12,item.y,'+Хп','#44ff44')
+                elif item.typ=='gem':
+                    self.score+=50; self.add_popup(item.x+12,item.y,'+50','#88ddff')
+                for _ in range(10):
+                    self.parts.append(Particle(item.x+12,item.y+12,random.uniform(-4,4),random.uniform(-4,4),'#00ff88'))
+                self.items.remove(item)
+
+        # Food
+        if self.food and collide(p,self.food):
+            self.state='levelcomplete'; self.score+=100
+            document['lcStats'].text=f'Счёт: {self.score} | ❤️ {self.lives}'
+            document['levelCompleteOverlay'].classList.add('active')
+
+        # Boss spawn
+        if p.x>=self.len-600 and not self.boss_sp:
+            self.boss_sp=True; self.boss=Boss(p.x+400, CH-GROUND_H, self.level)
+
+        # Food after boss
+        if self.boss_dead and not self.food_sp:
+            self.food_sp=True; fx=min(self.len-100, self.cam.x+CW*0.7)
+            self.food=FoodBowl(fx, CH-GROUND_H-30)
+
+        # Zombie spawn
+        self.z_timer+=1
+        if self.z_timer>=self.z_int:
+            self.z_timer=0
+            if p.x<self.len-400:
+                self.zoms.append(Zombie(p.x+CW+random.randint(50,200), CH-GROUND_H, self.level))
+
+        # Cleanup
+        for z in self.zoms[:]:
+            if z.x<self.cam.x-300: self.zoms.remove(z)
+
+        # Particles
+        for pt in self.parts[:]:
+            pt.x+=pt.vx; pt.y+=pt.vy; pt.vy+=0.12; pt.l-=1
+            if pt.l<=0: self.parts.remove(pt)
+
+        # Popups
+        for pp in self.popups[:]:
+            pp.y+=pp.vy; pp.vy*=.95; pp.l-=1
+            if pp.l<=0: self.popups.remove(pp)
+
+        # Explosions
+        for ex in self.explosions[:]:
+            ex.life-=1
+            if ex.life<=0: self.explosions.remove(ex)
+
+        # Camera shake
+        if self.cam.shake>0: self.cam.shake-=1
+
+        if p.invincible>0: p.invincible-=1
+        if self.dmg_f>0: self.dmg_f-=1
+        if self.combo_t>0: self.combo_t-=1
+        else: self.combo=0
+
+        # Extra life every N points
+        if self.score>=self.life_score+self.life_interval:
+            self.life_score+=self.life_interval
+            self.lives+=1
+            self.add_popup(p.x,p.y-40,'❤️ +1 жизнь!','#ff4466')
+            for _ in range(12):
+                self.parts.append(Particle(p.x+p.w//2,p.y+p.h//2,random.uniform(-5,5),random.uniform(-5,5),'#ff4466'))
+
+        if p.hp<=0:
+            if self.lives>0:
+                self.lives-=1
+                p.hp=p.max_hp
+                p.invincible=60
+                p.armor=max(0,p.armor-10)
+                self.add_popup(p.x,p.y-50,f'❤️ Осталось: {self.lives}','#ff4466')
+                self.cam.shake=12
+                self.dmg_f=15
+            else:
+                self.state='gameover'
+                document['goStats'].text=f'Счёт: {self.score} | Уровень: {self.level} | Жизни кончились!'
+                document['gameOverOverlay'].classList.add('active')
+
+    # ── RENDER ──
+    def render(self):
+        cam=self.cam; ctx2=self.ctx
+        # Screen shake offset
+        sx_off=random.uniform(-cam.shake,cam.shake) if cam.shake>0 else 0
+        sy_off=random.uniform(-cam.shake,cam.shake) if cam.shake>0 else 0
+        ctx2.save(); ctx2.translate(sx_off, sy_off)
+
+        sky_pal=['#87CEEB','#B0E0E6','#98D8C8','#D4A574','#7EC8E3','#C9B1FF']
+        a=self.level%len(sky_pal)
+        sky=sky_pal[a]
+        g=ctx2.createLinearGradient(0,0,0,CH)
+        g.addColorStop(0,sky); g.addColorStop(0.7,darken(sky,30))
+        ctx2.fillStyle=g; ctx2.fillRect(0,0,CW,CH)
+
+        # Mountains
+        ctx2.fillStyle=darken(sky,50)
+        for i in range(6):
+            mx=-((cam.x*0.2+i*200)%400)+i*60
+            mh=60+(i*37)%60
+            ctx2.beginPath(); ctx2.moveTo(mx,CH-GROUND_H)
+            ctx2.lineTo(mx+80,CH-GROUND_H-mh); ctx2.lineTo(mx+160,CH-GROUND_H); ctx2.fill()
+
+        # Platforms
+        for plat in self.plats:
+            sx=plat.x-cam.x
+            if sx>CW+20 or sx+plat.w<-20: continue
+            ctx2.fillStyle=plat.c; rnd_rect(sx,plat.y,plat.w,plat.h,4); ctx2.fill()
+            if plat.ground:
+                ctx2.fillStyle=darken(plat.c,30); ctx2.fillRect(sx,plat.y,plat.w,5)
+                ctx2.fillStyle='#5a8a3a'
+                for gx in range(0,int(plat.w),20):
+                    gh=4+(int(plat.x+gx)*7)%7; ctx2.fillRect(sx+gx,plat.y-gh,3,gh)
+
+        # Spikes
+        for sp in self.spikes:
+            sx=sp.x-cam.x
+            if sx<-40 or sx>CW+40: continue
+            ctx2.fillStyle='#cc3333'; ctx2.shadowColor='#ff4444'; ctx2.shadowBlur=6
+            num=max(2,sp.w//12); seg=sp.w/num
+            for i in range(num):
+                tx=sx+i*seg
+                ctx2.beginPath(); ctx2.moveTo(tx,sp.y+sp.h); ctx2.lineTo(tx+seg*0.5,sp.y)
+                ctx2.lineTo(tx+seg,sp.y+sp.h); ctx2.fill()
+            ctx2.shadowBlur=0; ctx2.fillStyle='#881111'; ctx2.fillRect(sx,sp.y+sp.h-3,sp.w,3)
+
+        # Items
+        emojis={'pistol':'🔫','rifle':'🔧','shotgun':'💥','rocket':'🚀','laser':'⚡','armor':'🛡️','heart':'❤️','gem':'💎'}
+        labels={'pistol':'Пистолет','rifle':'Автомат','shotgun':'Дробовик','rocket':'Ракетница','laser':'Лазер','armor':'Броня','heart':'Аптечка','gem':'Алмаз'}
+        for item in self.items:
+            sx=item.x-cam.x; sy=item.y
+            if sx<-30 or sx>CW+30: continue
+            bob=math.sin(self.prog*0.05+item.x*0.01)*3; sy+=bob
+            ctx2.fillStyle='rgba(255,255,100,0.12)'
+            ctx2.beginPath(); ctx2.arc(sx+12,sy+12,18,0,math.pi*2); ctx2.fill()
+            em=emojis.get(item.typ,'🔫')
+            ctx2.font='22px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif'
+            ctx2.textAlign='center'; ctx2.textBaseline='middle'
+            ctx2.fillText(em, sx+12, sy+12)
+            ctx2.font='9px sans-serif'; ctx2.fillStyle='#fff'
+            ctx2.shadowColor='rgba(0,0,0,0.6)'; ctx2.shadowBlur=3
+            ctx2.fillText(labels.get(item.typ,'?'), sx+12, sy-8)
+            ctx2.shadowBlur=0
+
+        # Zombies
+        for z in self.zoms:
+            sx=z.x-cam.x; sy=z.y
+            if sx<-50 or sx>CW+50: continue
+            self._draw_zombie(ctx2, sx, sy, z.w, z.h, z.hp, z.max_hp, z.tid, z.cl)
+
+        # Boss
+        if self.boss and not self.boss_dead:
+            sx=self.boss.x-cam.x; sy=self.boss.y
+            if sx>-80 and sx<CW+80: self._draw_boss(ctx2, sx, sy, self.boss.w, self.boss.h, self.boss.hp, self.boss.max_hp)
+
+        # Food
+        if self.food:
+            sx=self.food.x-cam.x; sy=self.food.y
+            if sx>-50 and sx<CW+50:
+                bob=math.sin(self.prog*0.04)*4
+                ctx2.font='36px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif'
+                ctx2.textAlign='center'; ctx2.textBaseline='middle'
+                ctx2.fillText('🥣', sx+20, sy+15+bob)
+                ctx2.fillStyle='rgba(255,255,200,0.2)'
+                ctx2.beginPath(); ctx2.arc(sx+20, sy+15+bob, 28, 0, math.pi*2); ctx2.fill()
+
+        # Player
+        if self.p:
+            sx=self.p.x-cam.x; sy=self.p.y
+            self._draw_player(ctx2, sx, sy, self.p.w, self.p.h, self.p.hp, self.p.max_hp, self.p.armor, self.p.invincible, self.p.facing)
+
+        # Bullets
+        for b in self.bullets:
+            sx=b.x-cam.x; sy=b.y
+            if b.btype=='explode':
+                ctx2.fillStyle='#ff8800'; ctx2.shadowColor='#ff4400'; ctx2.shadowBlur=14
+                ctx2.beginPath(); ctx2.arc(sx,sy,b.radius,0,math.pi*2); ctx2.fill()
+                # Trail
+                ctx2.fillStyle='rgba(255,136,0,0.3)'
+                ctx2.beginPath(); ctx2.arc(sx-b.speed*0.5,sy,b.radius*0.8,0,math.pi*2); ctx2.fill()
+            elif b.btype=='pierce':
+                ctx2.fillStyle='#00ddff'; ctx2.shadowColor='#00ddff'; ctx2.shadowBlur=12
+                ctx2.beginPath(); ctx2.arc(sx,sy,b.radius,0,math.pi*2); ctx2.fill()
+                ctx2.fillStyle='rgba(0,220,255,0.3)'
+                ctx2.fillRect(sx-b.speed-4, sy-2, b.speed+4, 4)
+            else:
+                ctx2.fillStyle='#ffdd44'; ctx2.shadowColor='#ffdd44'; ctx2.shadowBlur=10
+                ctx2.beginPath(); ctx2.arc(sx,sy,b.radius,0,math.pi*2); ctx2.fill()
+            ctx2.shadowBlur=0
+
+        # Explosions
+        for ex in self.explosions:
+            a=ex.life/20
+            ctx2.beginPath(); ctx2.arc(ex.x-cam.x, ex.y, ex.radius*(1+0.3*(1-a)), 0, math.pi*2)
+            ctx2.fillStyle=f'rgba(255,136,0,{a*0.4})'; ctx2.fill()
+            ctx2.beginPath(); ctx2.arc(ex.x-cam.x, ex.y, ex.radius*0.6*(1+0.3*(1-a)), 0, math.pi*2)
+            ctx2.fillStyle=f'rgba(255,200,0,{a*0.3})'; ctx2.fill()
+
+        # Particles
+        for pt in self.parts:
+            sx=pt.x-cam.x; sy=pt.y
+            a=max(0,pt.l/16)
+            ctx2.fillStyle=rgba(pt.c,a); ctx2.fillRect(sx-pt.sz/2, sy-pt.sz/2, pt.sz, pt.sz)
+
+        # Popups
+        for pp in self.popups:
+            a=min(1,pp.l/20)
+            ctx2.font='bold 14px sans-serif'; ctx2.textAlign='center'; ctx2.textBaseline='middle'
+            ctx2.shadowColor='rgba(0,0,0,0.8)'; ctx2.shadowBlur=6
+            ctx2.fillStyle=rgba(pp.c,a); ctx2.fillText(pp.t, pp.x-cam.x, pp.y)
+            ctx2.shadowBlur=0
+
+        # Damage flash
+        if self.dmg_f>0:
+            ctx2.fillStyle=f'rgba(255,0,0,{self.dmg_f*0.025})'
+            ctx2.fillRect(0,0,CW,CH)
+
+        ctx2.restore()  # undo shake
+
+        # HUD (not affected by shake)
+        self._hud()
+
+    def _draw_player(self,ctx2,x,y,w,h,hp,mp,armor,inv,facing):
+        if inv>0 and inv%4<2: ctx2.globalAlpha=0.5
+        if not facing:
+            ctx2.save(); ctx2.translate(x+w,y); ctx2.scale(-1,1); x=0; y=0
+
+        ctx2.fillStyle='rgba(0,0,0,0.15)'
+        ctx2.beginPath(); ctx2.ellipse(x+w//2,y+h+2,w//2-2,4,0,0,math.pi*2); ctx2.fill()
+        g=ctx2.createLinearGradient(x,y,x,y+h)
+        g.addColorStop(0,'#ff9944'); g.addColorStop(1,'#dd7722')
+        ctx2.fillStyle=g; rnd_rect(x+4,y+12,w-8,h-18,4); ctx2.fill()
+        ctx2.fillStyle='#ff9944'
+        ctx2.beginPath(); ctx2.arc(x+w//2,y+14,13,0,math.pi*2); ctx2.fill()
+        ctx2.fillStyle='#ff9944'
+        ctx2.beginPath(); ctx2.moveTo(x+8,y+8); ctx2.lineTo(x+2,y-4); ctx2.lineTo(x+16,y+4); ctx2.fill()
+        ctx2.beginPath(); ctx2.moveTo(x+w-8,y+8); ctx2.lineTo(x+w-2,y-4); ctx2.lineTo(x+w-16,y+4); ctx2.fill()
+        ctx2.fillStyle='#ffbb88'
+        ctx2.beginPath(); ctx2.moveTo(x+9,y+6); ctx2.lineTo(x+5,y-1); ctx2.lineTo(x+14,y+3); ctx2.fill()
+        ctx2.beginPath(); ctx2.moveTo(x+w-9,y+6); ctx2.lineTo(x+w-5,y-1); ctx2.lineTo(x+w-14,y+3); ctx2.fill()
+        ctx2.fillStyle='#222'
+        ctx2.beginPath(); ctx2.arc(x+w//2-5,y+13,2.5,0,math.pi*2); ctx2.arc(x+w//2+5,y+13,2.5,0,math.pi*2); ctx2.fill()
+        ctx2.fillStyle='#fff'
+        ctx2.beginPath(); ctx2.arc(x+w//2-4,y+12,1,0,math.pi*2); ctx2.arc(x+w//2+6,y+12,1,0,math.pi*2); ctx2.fill()
+        ctx2.fillStyle='#ff6688'; ctx2.beginPath(); ctx2.arc(x+w//2,y+17,2,0,math.pi*2); ctx2.fill()
+        ctx2.strokeStyle='#555'; ctx2.lineWidth=1
+        ctx2.beginPath()
+        ctx2.moveTo(x+w//2-8,y+16); ctx2.lineTo(x+w//2-18,y+13)
+        ctx2.moveTo(x+w//2-8,y+17); ctx2.lineTo(x+w//2-18,y+17)
+        ctx2.moveTo(x+w//2+8,y+16); ctx2.lineTo(x+w//2+18,y+13)
+        ctx2.moveTo(x+w//2+8,y+17); ctx2.lineTo(x+w//2+18,y+17)
+        ctx2.stroke()
+        ctx2.fillStyle='#cc6611'
+        ctx2.fillRect(x+10,y+20,3,6); ctx2.fillRect(x+17,y+18,3,8); ctx2.fillRect(x+24,y+20,3,6)
+        ctx2.fillStyle='#dd7722'; ctx2.fillRect(x+6,y+h-8,8,8); ctx2.fillRect(x+w-14,y+h-8,8,8)
+        ctx2.fillStyle='#ffbb88'; ctx2.fillRect(x+6,y+h-4,8,4); ctx2.fillRect(x+w-14,y+h-4,8,4)
+        ctx2.strokeStyle='#dd7722'; ctx2.lineWidth=5; ctx2.lineCap='round'
+        ctx2.beginPath(); ctx2.moveTo(x-2,y+h-12); ctx2.quadraticCurveTo(x-14,y-2,x-4,y-4); ctx2.stroke()
+        if armor>0:
+            ctx2.font='12px sans-serif'; ctx2.textAlign='center'; ctx2.textBaseline='bottom'
+            ctx2.fillStyle='#44aaff'; ctx2.fillText('🛡',x+w//2,y-2)
+        # Weapon icon above head
+        wi=WEAPONS.get(self.p.weapon,{}).get('icon','🔫') if self.p else '🔫'
+        ctx2.font='14px sans-serif'; ctx2.textAlign='center'; ctx2.textBaseline='bottom'
+        ctx2.fillText(wi, x+w//2, y-2 if armor==0 else y-14)
+
+        if not facing: ctx2.restore()
+        ctx2.globalAlpha=1
+
+    def _draw_zombie(self,ctx2,x,y,w,h,hp,mp,tid,cl):
+        ctx2.fillStyle='rgba(0,0,0,0.12)'
+        ctx2.beginPath(); ctx2.ellipse(x+w//2,y+h+2,w//2-2,3,0,0,math.pi*2); ctx2.fill()
+        dk=darken(cl,20)
+        ctx2.fillStyle=cl; rnd_rect(x+3,y+14,w-6,h-18,3); ctx2.fill()
+        ctx2.fillStyle='#5a4a3a'; ctx2.fillRect(x+5,y+22,5,7); ctx2.fillRect(x+w-10,y+24,5,5)
+        ctx2.fillStyle=dk
+        ctx2.beginPath(); ctx2.arc(x+w//2,y+13,10,0,math.pi*2); ctx2.fill()
+        if tid=='f':
+            ctx2.fillStyle='#ff4400'
+            ctx2.beginPath(); ctx2.arc(x+w//2-4,y+11,3,0,math.pi*2); ctx2.arc(x+w//2+4,y+11,3,0,math.pi*2); ctx2.fill()
+            ctx2.fillStyle='#ffaa00'
+            ctx2.beginPath(); ctx2.arc(x+w//2-4,y+11,1.5,0,math.pi*2); ctx2.arc(x+w//2+4,y+11,1.5,0,math.pi*2); ctx2.fill()
+        elif tid=='b':
+            ctx2.fillStyle='#ff0000'
+            ctx2.beginPath(); ctx2.arc(x+w//2-5,y+11,3.5,0,math.pi*2); ctx2.arc(x+w//2+5,y+11,3.5,0,math.pi*2); ctx2.fill()
+            ctx2.fillStyle='#440000'
+            ctx2.beginPath(); ctx2.arc(x+w//2-5,y+11,1.5,0,math.pi*2); ctx2.arc(x+w//2+5,y+11,1.5,0,math.pi*2); ctx2.fill()
+            ctx2.fillStyle=cl; ctx2.fillRect(x-2,y+16,4,12); ctx2.fillRect(x+w-2,y+16,4,12)
+        elif tid=='a':
+            ctx2.fillStyle='#888'; rnd_rect(x+2,y+4,w-4,12,3); ctx2.fill()
+            ctx2.fillStyle='#666'; ctx2.fillRect(x+4,y+8,w-8,3)
+            ctx2.fillStyle='#ff4400'
+            ctx2.beginPath(); ctx2.arc(x+w//2-4,y+12,2,0,math.pi*2); ctx2.arc(x+w//2+4,y+12,2,0,math.pi*2); ctx2.fill()
+        else:
+            ctx2.fillStyle='#ff2200'
+            ctx2.beginPath(); ctx2.arc(x+w//2-4,y+11,2.5,0,math.pi*2); ctx2.arc(x+w//2+4,y+11,2.5,0,math.pi*2); ctx2.fill()
+            ctx2.fillStyle='#ff6666'
+            ctx2.beginPath(); ctx2.arc(x+w//2-3,y+10,1,0,math.pi*2); ctx2.arc(x+w//2+5,y+10,1,0,math.pi*2); ctx2.fill()
+        ctx2.fillStyle='#2a1a0a'; ctx2.fillRect(x+w//2-4,y+16,8,3)
+        ctx2.fillRect(x+w//2-6,y+15,3,2); ctx2.fillRect(x+w//2+3,y+15,3,2)
+        ctx2.fillStyle=cl; ctx2.fillRect(x-3,y+16,6,13); ctx2.fillRect(x+w-3,y+16,6,13)
+        ctx2.fillStyle=dk; ctx2.fillRect(x-3,y+27,6,5); ctx2.fillRect(x+w-3,y+27,6,5)
+        ctx2.fillStyle=darken(cl,30)
+        ctx2.fillRect(x+4,y+h-10,8,10); ctx2.fillRect(x+w-12,y+h-10,8,10)
+        if hp<mp:
+            bw=w+4; bh=4; bx=x-2; by=y-8
+            ctx2.fillStyle='rgba(0,0,0,0.5)'; ctx2.fillRect(bx,by,bw,bh)
+            ctx2.fillStyle='#ff4444'; ctx2.fillRect(bx+1,by+1,(bw-2)*(hp/mp),bh-2)
+
+    def _draw_boss(self,ctx2,x,y,w,h,hp,mp):
+        ctx2.fillStyle='rgba(0,0,0,0.2)'
+        ctx2.beginPath(); ctx2.ellipse(x+w//2,y+h+3,w//2+4,6,0,0,math.pi*2); ctx2.fill()
+        g=ctx2.createLinearGradient(x,y,x,y+h)
+        g.addColorStop(0,'#6a1a3a'); g.addColorStop(1,'#3a0a1a')
+        ctx2.fillStyle=g; rnd_rect(x+6,y+24,w-12,h-30,6); ctx2.fill()
+        ctx2.fillStyle='#5a102a'
+        ctx2.beginPath(); ctx2.arc(x+12,y+30,14,-math.pi/2,math.pi/2); ctx2.fill()
+        ctx2.beginPath(); ctx2.arc(x+w-12,y+30,14,math.pi/2,-math.pi/2); ctx2.fill()
+        ctx2.fillStyle='#7a2a4a'
+        ctx2.beginPath(); ctx2.arc(x+w//2,y+22,20,0,math.pi*2); ctx2.fill()
+        ctx2.fillStyle='#4a0a1a'
+        ctx2.beginPath(); ctx2.moveTo(x+w//2-10,y+6); ctx2.lineTo(x+w//2-16,y-18); ctx2.lineTo(x+w//2-2,y+2); ctx2.fill()
+        ctx2.beginPath(); ctx2.moveTo(x+w//2+10,y+6); ctx2.lineTo(x+w//2+16,y-18); ctx2.lineTo(x+w//2+2,y+2); ctx2.fill()
+        ctx2.fillStyle='#ff2200'
+        ctx2.beginPath(); ctx2.ellipse(x+w//2,y+20,8,6,0,0,math.pi*2); ctx2.fill()
+        ctx2.fillStyle='#ffaa00'; ctx2.beginPath(); ctx2.arc(x+w//2,y+20,4,0,math.pi*2); ctx2.fill()
+        ctx2.fillStyle='#fff'; ctx2.beginPath(); ctx2.arc(x+w//2+2,y+18,2,0,math.pi*2); ctx2.fill()
+        ctx2.fillStyle='#1a0a0a'; ctx2.fillRect(x+w//2-8,y+28,16,5)
+        ctx2.fillRect(x+w//2-10,y+27,4,3); ctx2.fillRect(x+w//2+6,y+27,4,3)
+        ctx2.fillStyle='#ddd'; ctx2.fillRect(x+w//2-7,y+28,3,3); ctx2.fillRect(x+w//2-2,y+28,3,3); ctx2.fillRect(x+w//2+3,y+28,3,3)
+        ctx2.fillStyle='#5a102a'; ctx2.fillRect(x-8,y+30,14,24); ctx2.fillRect(x+w-6,y+30,14,24)
+        ctx2.fillStyle='#6a1a3a'; ctx2.fillRect(x-10,y+50,18,10); ctx2.fillRect(x+w-8,y+50,18,10)
+        ctx2.fillStyle='#3a0818'; ctx2.fillRect(x+10,y+h-16,14,16); ctx2.fillRect(x+w-24,y+h-16,14,16)
+        ctx2.fillStyle='#2a0510'; ctx2.fillRect(x+8,y+h-4,18,6); ctx2.fillRect(x+w-26,y+h-4,18,6)
+        bw=w+20; bh=6; bx=x-10; by=y-14
+        ctx2.fillStyle='rgba(0,0,0,0.6)'; rnd_rect(bx-1,by-1,bw+2,bh+2,3); ctx2.fill()
+        ctx2.fillStyle='#aa2222'; rnd_rect(bx,by,bw,bh,2); ctx2.fill()
+        ctx2.fillStyle='#ff4444'; rnd_rect(bx+1,by+1,(bw-2)*(hp/mp),bh-2,2); ctx2.fill()
+        ctx2.fillStyle='#fff'; ctx2.font='bold 8px sans-serif'; ctx2.textAlign='center'; ctx2.textBaseline='middle'
+        ctx2.fillText('БОСС',x+w//2,by-8)
+
+    def _hud(self):
+        ctx2=self.ctx; p=self.p
+        if not p: return
+        bx,by=16,16; bw,bh=200,18
+        ctx2.fillStyle='rgba(0,0,0,0.5)'; rnd_rect(bx-2,by-2,bw+4,bh+4,6); ctx2.fill()
+        ctx2.fillStyle='#333'; rnd_rect(bx,by,bw,bh,5); ctx2.fill()
+        hr=p.hp/p.max_hp
+        hc='#44ff44' if hr>.5 else '#ffaa00' if hr>.25 else '#ff4444'
+        ctx2.fillStyle=hc; rnd_rect(bx+2,by+2,(bw-4)*hr,bh-4,4); ctx2.fill()
+        ctx2.fillStyle='#fff'; ctx2.font='bold 12px sans-serif'
+        ctx2.textAlign='center'; ctx2.textBaseline='middle'
+        ctx2.fillText(f'{int(p.hp)}/{p.max_hp}',bx+bw//2,by+bh//2)
+        if p.armor>0:
+            ax,ay=bx,by+bh+5
+            ctx2.fillStyle='rgba(0,0,0,0.5)'; rnd_rect(ax-2,ay-2,bw+4,12+4,4); ctx2.fill()
+            ctx2.fillStyle='#222'; rnd_rect(ax,ay,bw,12,3); ctx2.fill()
+            ctx2.fillStyle='#44aaff'; rnd_rect(ax+2,ay+2,(bw-4)*(p.armor/p.max_armor),8,2); ctx2.fill()
+            ctx2.fillStyle='#aaddff'; ctx2.font='9px sans-serif'; ctx2.textAlign='center'; ctx2.textBaseline='middle'
+            ctx2.fillText(f'Броня: {int(p.armor)}',ax+bw//2,ay+6)
+
+        # Lives
+        ctx2.font='16px sans-serif'; ctx2.textAlign='left'; ctx2.textBaseline='top'
+        lx,ly=16,by+bh+18
+        for i in range(self.lives):
+            ctx2.fillText('❤️', lx+i*22, ly)
+        ctx2.fillStyle='rgba(255,255,255,0.3)'; ctx2.font='9px sans-serif'
+        ctx2.fillText(f'жизней: {self.lives}', lx, ly+18)
+
+        # Weapon slots HUD
+        ws=25; gap=3; start_x=CW-130; start_y=50
+        ctx2.fillStyle='rgba(0,0,0,0.4)'; rnd_rect(start_x-4,12,134,36+len(WEAPON_KEYS)*(ws+gap),6); ctx2.fill()
+        ctx2.font='11px sans-serif'; ctx2.textAlign='center'; ctx2.textBaseline='middle'
+        for i,wid in enumerate(WEAPON_KEYS):
+            w=WEAPONS[wid]; y=50+i*(ws+gap)
+            owned=wid in p.owned
+            selected=(wid==p.weapon)
+            ctx2.fillStyle='#e94560' if selected else ('#333' if owned else '#222')
+            rnd_rect(start_x,y,126,ws,4); ctx2.fill()
+            if owned:
+                ctx2.fillStyle='#fff' if selected else '#aaa'
+                ctx2.font='bold 11px sans-serif' if selected else '10px sans-serif'
+                ctx2.textAlign='left'; ctx2.textBaseline='middle'
+                ctx2.fillText(f'{i+1}. {w["icon"]} {w["name"]}', start_x+8, y+ws//2)
+                am=p.ammo.get(wid,0); mx=p.max_ammo.get(wid,99999)
+                ammo_str=f'{am}' if am>=99999 else f'{am}/{mx}'
+                ctx2.textAlign='right'; ctx2.fillStyle='#ffdd44' if am<20 and am<99999 else '#666'
+                ctx2.fillText(ammo_str, start_x+122, y+ws//2)
+                if am<10 and am<99999 and int(self.prog)%10<5:
+                    ctx2.fillStyle='rgba(255,0,0,0.3)'; rnd_rect(start_x,y,126,ws,4); ctx2.fill()
+            else:
+                ctx2.textAlign='center'; ctx2.textBaseline='middle'
+                ctx2.fillStyle='#555'; ctx2.font='10px sans-serif'
+                ctx2.fillText('🔒 ???', start_x+63, y+ws//2)
+
+        # Score & kills
+        ctx2.textAlign='right'; ctx2.fillStyle='#fff'; ctx2.font='bold 14px sans-serif'
+        ctx2.shadowColor='rgba(0,0,0,0.6)'; ctx2.shadowBlur=4
+        ctx2.fillText(f'Счёт: {self.score}', CW-16, 14)
+        ctx2.font='11px sans-serif'; ctx2.fillStyle='rgba(255,255,255,0.5)'
+        ctx2.fillText(f'Убито: {self.kills}', CW-16, 30)
+        ctx2.shadowBlur=0
+        ctx2.textAlign='left'; ctx2.fillStyle='rgba(255,255,255,0.4)'; ctx2.font='10px sans-serif'
+        ctx2.fillText(f'Уровень {self.level}/{TOTAL_LEVELS}', bx, by+bh+28)
+
+        # Progress bar
+        pr=min(1,self.prog/self.len) if self.len>0 else 0
+        pbx,pby=16,CH-14; pbw,pbh=CW-32,5
+        ctx2.fillStyle='rgba(0,0,0,0.3)'; rnd_rect(pbx,pby,pbw,pbh,2); ctx2.fill()
+        ctx2.fillStyle='#e94560'; rnd_rect(pbx+1,pby+1,(pbw-2)*pr,pbh-2,1); ctx2.fill()
+
+# ── START ──
+game = Game()
+game.start()
+</script>
+</body>
+</html>
