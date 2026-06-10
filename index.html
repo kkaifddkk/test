@@ -261,7 +261,12 @@ class Game:
             def eo(e): e.preventDefault(); self.keys[k]=False; el.classList.remove('active')
             el.bind('touchstart',s); el.bind('touchend',eo); el.bind('touchcancel',eo)
             el.bind('mousedown',s); el.bind('mouseup',eo); el.bind('mouseleave',eo)
-        bind('btnUp','up'); bind('btnLeft','left'); bind('btnRight','right'); bind('btnFire','fire')
+        bind('btnLeft','left'); bind('btnRight','right'); bind('btnFire','fire')
+        el_up=document['btnUp']
+        def up_s(e): e.preventDefault(); self.keys['up']=True; self.keys['jump_held']=True; el_up.classList.add('active')
+        def up_e(e): e.preventDefault(); self.keys['up']=False; self.keys['jump_held']=False; el_up.classList.remove('active')
+        el_up.bind('touchstart',up_s); el_up.bind('touchend',up_e); el_up.bind('touchcancel',up_e)
+        el_up.bind('mousedown',up_s); el_up.bind('mouseup',up_e); el_up.bind('mouseleave',up_e)
 
         document['restartBtn'].bind('click',lambda e:self.restart())
         document['nextLevelBtn'].bind('click',lambda e:self.next())
